@@ -1,7 +1,8 @@
 {
-  "name": "Rock SFA",
-  "short_name": "Rock SFA",
-  "description": "Sales Force Automation app for Rock Energy Ltd",
+  "id": "salesflow-demo",
+  "name": "SalesFlow | Field Sales Dashboard",
+  "short_name": "SalesFlow",
+  "description": "A fictional field sales dashboard demo for portfolio showcase.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8fafc",
