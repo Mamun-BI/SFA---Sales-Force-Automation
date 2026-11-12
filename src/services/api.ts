@@ -11,11 +11,12 @@ import {
 } from "@/data/demoData";
 
 const STORE_KEY = "salesflow_demo_workspace_v1";
-
+type StoredRecord = Record<string, unknown>;
+type StoredOrder = StoredRecord & { quantity?: number };
 type DemoStore = {
-  customers: Array<Record<string, unknown>>;
-  visits: Array<Record<string, unknown>>;
-  orders: Array<Record<string, unknown>>;
+  customers: StoredRecord[];
+  visits: StoredRecord[];
+  orders: StoredOrder[];
   attendance: Array<{ type: string; timestamp: string; date: string }>;
 };
 
@@ -26,13 +27,11 @@ function emptyStore(): DemoStore {
 function readStore(): DemoStore {
   if (typeof window === "undefined") return emptyStore();
   try {
-    const stored = localStorage.getItem(STORE_KEY);
-    if (!stored) return emptyStore();
-    const parsed = JSON.parse(stored) as Partial<DemoStore>;
+    const parsed = JSON.parse(localStorage.getItem(STORE_KEY) || "{}") as Partial<DemoStore>;
     return {
       customers: Array.isArray(parsed.customers) ? parsed.customers : [],
       visits: Array.isArray(parsed.visits) ? parsed.visits : [],
-      orders: Array.isArray(parsed.orders) ? parsed.orders : [],
+      orders: Array.isArray(parsed.orders) ? parsed.orders as StoredOrder[] : [],
       attendance: Array.isArray(parsed.attendance) ? parsed.attendance : [],
     };
   } catch {
@@ -61,23 +60,14 @@ function timestampToday(value: unknown) {
 }
 
 function dashboardData(store: DemoStore) {
-  const seededVisits = demoDashboardData.visits.map((visit) => ({
-    ...visit,
-    timestamp: timestampToday(visit.timestamp),
-  }));
-  const seededOrders = demoDashboardData.orders.map((order) => ({
-    ...order,
-    createdAt: timestampToday(order.createdAt),
-  }));
+  const seededVisits = demoDashboardData.visits.map((visit) => ({ ...visit, timestamp: timestampToday(visit.timestamp) }));
+  const seededOrders = demoDashboardData.orders.map((order) => ({ ...order, createdAt: timestampToday(order.createdAt) }));
   const visits = [...seededVisits, ...store.visits] as typeof demoDashboardData.visits;
   const orders = [...seededOrders, ...store.orders] as typeof demoDashboardData.orders;
   const route = visits
     .map((visit) => ({
-      lat: Number(visit.latitude),
-      lng: Number(visit.longitude),
-      name: String(visit.customerName || "Customer"),
-      time: String(visit.timestamp || ""),
-      area: String(visit.area || visit.city || ""),
+      lat: Number(visit.latitude), lng: Number(visit.longitude), name: String(visit.customerName || "Customer"),
+      time: String(visit.timestamp || ""), area: String(visit.area || visit.city || ""),
     }))
     .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
   return {
@@ -96,14 +86,10 @@ function dashboardData(store: DemoStore) {
 function reportData(store: DemoStore) {
   const report = JSON.parse(JSON.stringify(demoReportData)) as typeof demoReportData;
   const visits = store.visits.map((visit) => ({
-    ...visit,
-    date: todayIso(),
-    timestamp: String(visit.timestamp || new Date().toISOString()),
+    ...visit, date: todayIso(), timestamp: String(visit.timestamp || new Date().toISOString()),
   }));
-  const orders = store.orders.map((order) => ({
-    ...order,
-    date: todayIso(),
-    createdAt: String(order.createdAt || new Date().toISOString()),
+  const orders: StoredOrder[] = store.orders.map((order) => ({
+    ...order, date: todayIso(), createdAt: String(order.createdAt || new Date().toISOString()),
   }));
   report.visits = [...visits, ...report.visits] as typeof report.visits;
   report.orders = [...orders, ...report.orders] as typeof report.orders;
@@ -134,29 +120,19 @@ function demoResponse(action: string, payload: Record<string, unknown> = {}) {
     case "clockIn":
     case "clockOut": {
       const type = action === "clockIn" ? "Clock In" : "Clock Out";
-      const timestamp = new Date().toISOString();
-      store.attendance.unshift({ type, timestamp, date: todayIso() });
+      store.attendance.unshift({ type, timestamp: new Date().toISOString(), date: todayIso() });
       writeStore(store);
       return { success: true, message: `${type} saved in this browser demo.` };
     }
     case "submitVisit": {
       const visitId = `VIS${Date.now()}`;
-      const timestamp = new Date().toISOString();
-      const visit = {
-        visitId,
-        timestamp,
-        customerCode: String(payload.customerId || ""),
-        customerName: String(payload.customerName || "Demo customer"),
-        area: String(payload.area || ""),
-        city: String(payload.district || ""),
-        latitude: String(payload.lat ?? ""),
-        longitude: String(payload.lng ?? ""),
-        brandFocus: String(payload.brandFocus || ""),
-        totalQuantity: Number(payload.totalQuantity) || 0,
-        visitResult: String(payload.visitResult || "Completed"),
-        orderNotReceived: String(payload.orderNotReceived || ""),
-        marketName: String(payload.marketName || ""),
-        territory: String(payload.territory || ""),
+      const visit: StoredRecord = {
+        visitId, timestamp: new Date().toISOString(), customerCode: String(payload.customerId || ""),
+        customerName: String(payload.customerName || "Demo customer"), area: String(payload.area || ""),
+        city: String(payload.district || ""), latitude: String(payload.lat ?? ""), longitude: String(payload.lng ?? ""),
+        brandFocus: String(payload.brandFocus || ""), totalQuantity: Number(payload.totalQuantity) || 0,
+        visitResult: String(payload.visitResult || "Completed"), orderNotReceived: String(payload.orderNotReceived || ""),
+        marketName: String(payload.marketName || ""), territory: String(payload.territory || ""),
         visitStatus: String(payload.visitStatus || "Completed"),
       };
       store.visits.unshift(visit);
@@ -166,20 +142,13 @@ function demoResponse(action: string, payload: Record<string, unknown> = {}) {
     case "submitOrder": {
       const invoiceId = `ORD${Date.now()}`;
       const timestamp = new Date().toISOString();
-      const products = Array.isArray(payload.products) ? payload.products as Array<Record<string, unknown>> : [];
+      const products = Array.isArray(payload.products) ? payload.products as StoredRecord[] : [];
       products.forEach((product) => store.orders.unshift({
-        invoiceId,
-        customerName: String(payload.customerName || "Demo customer"),
-        customerId: String(payload.customerId || ""),
-        productName: String(product.productName || "Demo product"),
-        productId: String(product.productId || ""),
-        quantity: Number(product.quantity) || 0,
-        createdAt: timestamp,
-        date: todayIso(),
-        orderStatus: "Done",
+        invoiceId, customerName: String(payload.customerName || "Demo customer"), customerId: String(payload.customerId || ""),
+        productName: String(product.productName || "Demo product"), productId: String(product.productId || ""),
+        quantity: Number(product.quantity) || 0, createdAt: timestamp, date: todayIso(), orderStatus: "Done",
         distributorName: String(payload.distributorName || "Demo distributor"),
-        orderMonth: new Date().getMonth() + 1,
-        orderYear: new Date().getFullYear(),
+        orderMonth: new Date().getMonth() + 1, orderYear: new Date().getFullYear(),
       }));
       writeStore(store);
       return { success: true, invoiceId, message: "Order saved in this browser demo." };
@@ -187,21 +156,14 @@ function demoResponse(action: string, payload: Record<string, unknown> = {}) {
     case "registerCustomer": {
       const customerId = makeDemoCustomerId();
       store.customers.unshift({
-        customerId,
-        shopName: String(payload.shopName || "New demo customer"),
-        ownerName: String(payload.ownerName || "Demo owner"),
-        ownerContact: String(payload.ownerContact || ""),
-        marketName: String(payload.marketName || ""),
-        district: String(payload.district || ""),
-        area: String(payload.area || ""),
-        territory: String(payload.territory || ""),
-        shopType: String(payload.shopType || "Retail"),
-        fullAddress: String(payload.fullAddress || ""),
-        latitude: String(payload.lat ?? ""),
-        longitude: String(payload.lng ?? ""),
+        customerId, shopName: String(payload.shopName || "New demo customer"),
+        ownerName: String(payload.ownerName || "Demo owner"), ownerContact: String(payload.ownerContact || ""),
+        marketName: String(payload.marketName || ""), district: String(payload.district || ""),
+        area: String(payload.area || ""), territory: String(payload.territory || ""),
+        shopType: String(payload.shopType || "Retail"), fullAddress: String(payload.fullAddress || ""),
+        latitude: String(payload.lat ?? ""), longitude: String(payload.lng ?? ""),
         salesOfficer: String(payload.salesOfficer || demoUser.employeeName),
-        email: String(payload.email || demoUser.email),
-        status: "Active",
+        email: String(payload.email || demoUser.email), status: "Active",
       });
       writeStore(store);
       return { success: true, customerId, message: "Customer saved in this browser demo." };
@@ -212,14 +174,8 @@ function demoResponse(action: string, payload: Record<string, unknown> = {}) {
       return {
         success: true,
         users: demoMasterData.employees.map((employee) => ({
-          userId: employee.userId,
-          employeeName: employee.employeeName,
-          employeeCode: employee.employeeCode,
-          position: employee.position,
-          area: employee.area,
-          territory: employee.territory,
-          lastSeen: Date.now(),
-          isOnline: true,
+          userId: employee.userId, employeeName: employee.employeeName, employeeCode: employee.employeeCode,
+          position: employee.position, area: employee.area, territory: employee.territory, lastSeen: Date.now(), isOnline: true,
         })),
         totalCount: demoMasterData.employees.length,
         onlineCount: demoMasterData.employees.length,
@@ -235,10 +191,6 @@ async function post<T>(payload: Record<string, unknown>): Promise<T> {
 
 async function postSingle<T>(payload: Record<string, unknown>): Promise<T> {
   return demoResponse(String(payload.action || ""), payload) as T;
-}
-
-async function get<T>(params: Record<string, string>): Promise<T> {
-  return demoResponse(params.action || "", params) as T;
 }
 
 export interface LoginUser {
@@ -326,10 +278,10 @@ export const api = {
   login(email: string, password: string) { return post<LoginResponse>({ action: "login", email, password }); },
   clockIn(userId: string, lat: number, lng: number, imageBase64?: string) { return postSingle<AttendanceResponse>({ action: "clockIn", userId, lat, lng, imageBase64 }); },
   clockOut(userId: string, lat: number, lng: number, imageBase64?: string) { return postSingle<AttendanceResponse>({ action: "clockOut", userId, lat, lng, imageBase64 }); },
-  getMasterData(_forceRefresh = false) { return post<MasterDataResponse>({ action: "getMasterData" }); },
-  getCustomers(_forceRefresh = false) { return post<CustomerListResponse>({ action: "getCustomers" }); },
-  getProducts(_forceRefresh = false) { return post<ProductListResponse>({ action: "getProducts" }); },
-  getSubDBs(_forceRefresh = false) { return post<SubDBListResponse>({ action: "getSubDBs" }); },
+  getMasterData(forceRefresh = false) { void forceRefresh; return post<MasterDataResponse>({ action: "getMasterData" }); },
+  getCustomers(forceRefresh = false) { void forceRefresh; return post<CustomerListResponse>({ action: "getCustomers" }); },
+  getProducts(forceRefresh = false) { void forceRefresh; return post<ProductListResponse>({ action: "getProducts" }); },
+  getSubDBs(forceRefresh = false) { void forceRefresh; return post<SubDBListResponse>({ action: "getSubDBs" }); },
   async submitVisit(data: VisitData) { return postSingle<VisitResponse>({ action: "submitVisit", ...data }); },
   async submitOrder(data: OrderData) { return postSingle<OrderResponse>({ action: "submitOrder", ...data }); },
   getDashboardData(email: string) { return post<DashboardResponse>({ action: "getDashboardData", email }); },
