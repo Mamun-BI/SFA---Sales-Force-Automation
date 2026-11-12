@@ -160,36 +160,8 @@ export const demoSubDBs = [
 export const demoDashboardData = {
   today: "2026-11-12",
   visits: [
-    {
-      visitId: "VIS100001",
-      timestamp: "2026-11-12T09:15:00.000Z",
-      customerCode: "22000001",
-      customerName: "Green Valley Mart",
-      area: "Dhaka North",
-      city: "Dhaka",
-      latitude: "23.8124",
-      longitude: "90.3567",
-      brandFocus: "Premium Engine Oil",
-      totalQuantity: 120,
-      visitResult: "Inside Radius",
-      orderNotReceived: "",
-      marketName: "Mirpur 10",
-    },
-    {
-      visitId: "VIS100002",
-      timestamp: "2026-11-12T12:35:00.000Z",
-      customerCode: "22000002",
-      customerName: "City Mart Traders",
-      area: "Dhaka North",
-      city: "Dhaka",
-      latitude: "23.7461",
-      longitude: "90.3774",
-      brandFocus: "Industrial Grease",
-      totalQuantity: 80,
-      visitResult: "Inside Radius",
-      orderNotReceived: "",
-      marketName: "Dhanmondi",
-    },
+    { visitId: "VIS100001", timestamp: "2026-11-12T09:15:00.000Z", customerCode: "22000001", customerName: "Green Valley Mart", area: "Dhaka North", city: "Dhaka", latitude: "23.8124", longitude: "90.3567", brandFocus: "Premium Engine Oil", totalQuantity: 120, visitResult: "Inside Radius", orderNotReceived: "", marketName: "Mirpur 10" },
+    { visitId: "VIS100002", timestamp: "2026-11-12T12:35:00.000Z", customerCode: "22000002", customerName: "City Mart Traders", area: "Dhaka North", city: "Dhaka", latitude: "23.7461", longitude: "90.3774", brandFocus: "Industrial Grease", totalQuantity: 80, visitResult: "Inside Radius", orderNotReceived: "", marketName: "Dhanmondi" },
   ],
   visitCount: 2,
   orders: [
@@ -211,18 +183,7 @@ export const demoDashboardData = {
 export const demoReportData = {
   startDate: "2026-09-01",
   endDate: "2026-11-12",
-  summary: {
-    totalVisits: 24,
-    totalOrders: 18,
-    totalOrderQty: 620,
-    totalDistanceKm: 214.5,
-    activeDays: 12,
-    totalClockIns: 12,
-    uniqueAreas: 4,
-    uniqueCustomers: 10,
-    avgQtyPerVisit: 25.8,
-    avgVisitsPerDay: 2,
-  },
+  summary: { totalVisits: 24, totalOrders: 18, totalOrderQty: 620, totalDistanceKm: 214.5, activeDays: 12, totalClockIns: 12, uniqueAreas: 4, uniqueCustomers: 10, avgQtyPerVisit: 25.8, avgVisitsPerDay: 2 },
   visits: [
     { visitId: "VIS100001", timestamp: "2026-11-12T09:15:00.000Z", date: "2026-11-12", customerCode: "22000001", customerName: "Green Valley Mart", area: "Dhaka North", city: "Dhaka", latitude: "23.8124", longitude: "90.3567", brandFocus: "Premium Engine Oil", totalQuantity: 120, visitResult: "Inside Radius", orderNotReceived: "", marketName: "Mirpur 10", territory: "North Zone", visitStatus: "Completed" },
     { visitId: "VIS100002", timestamp: "2026-11-12T12:35:00.000Z", date: "2026-11-12", customerCode: "22000002", customerName: "City Mart Traders", area: "Dhaka North", city: "Dhaka", latitude: "23.7461", longitude: "90.3774", brandFocus: "Industrial Grease", totalQuantity: 80, visitResult: "Inside Radius", orderNotReceived: "", marketName: "Dhanmondi", territory: "North Zone", visitStatus: "Completed" },
@@ -269,19 +230,10 @@ export const demoReportData = {
 export function makeDemoLoginResponse(email?: string, password?: string) {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const normalizedPassword = String(password || "").trim();
-
-  if (!normalizedEmail || !normalizedPassword) {
-    return { success: false, message: "Email and password are required." };
+  if (normalizedEmail !== "demo@salesflow.app" || normalizedPassword !== "demo123") {
+    return { success: false, message: "Use demo@salesflow.app and demo123 to explore this demo." };
   }
-
-  return {
-    success: true,
-    user: {
-      ...demoUser,
-      email: normalizedEmail.includes("@") ? normalizedEmail : demoUser.email,
-      employeeName: demoUser.employeeName,
-    },
-  };
+  return { success: true, user: { ...demoUser } };
 }
 
 export function makeDemoCustomerId() {
