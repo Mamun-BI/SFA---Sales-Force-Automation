@@ -1,90 +1,62 @@
-const DEPLOYMENT_URL = "https://script.google.com/macros/s/AKfycbymId6DOyxILDB8iCiWSgQNlBxt_zK3URVx46EbJ4n9XnbfX7zuOy1bpqNw7UtGnM8k/exec";
-const API_URL = DEPLOYMENT_URL;
+import {
+  demoCustomers,
+  demoDashboardData,
+  demoMasterData,
+  demoProducts,
+  demoReportData,
+  demoSubDBs,
+  makeDemoLoginResponse,
+  makeDemoCustomerId,
+} from "@/data/demoData";
 
-const MAX_RETRIES = 2;
-const RETRY_DELAY_MS = 1500;
-const FETCH_TIMEOUT_MS = 45000;
-
-async function fetchWithTimeout(url: string, options: RequestInit, timeout = FETCH_TIMEOUT_MS): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => {
-    try {
-      controller.abort();
-    } catch {
-      // ignore
-    }
-  }, timeout);
-
-  try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    return res;
-  } catch (err) {
-    if (err instanceof Error && (err.name === "AbortError" || err.message.includes("aborted"))) {
-      throw new Error("Connection timed out. Please check network connection and try again.");
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
+// This branch is a public portfolio demo. Keep all data local and fictional;
+// never send demo credentials or submitted form data to the legacy company API.
+function demoResponse(action: string, payload: Record<string, unknown> = {}) {
+  switch (action) {
+    case "login":
+      return makeDemoLoginResponse(String(payload.email || ""), String(payload.password || ""));
+    case "getMasterData":
+      return { success: true, data: demoMasterData };
+    case "getCustomers":
+      return { success: true, data: demoCustomers };
+    case "getProducts":
+      return { success: true, data: demoProducts };
+    case "getSubDBs":
+      return { success: true, data: demoSubDBs };
+    case "getDashboardData":
+      return { success: true, data: demoDashboardData };
+    case "getReportData":
+      return { success: true, data: demoReportData };
+    case "clockIn":
+    case "clockOut":
+      return { success: true, message: "Attendance saved in demo mode." };
+    case "submitVisit":
+      return { success: true, visitId: `VIS${Date.now()}`, message: "Demo visit recorded." };
+    case "submitOrder":
+      return { success: true, invoiceId: `ORD${Date.now()}`, message: "Demo order placed." };
+    case "registerCustomer":
+      return { success: true, customerId: makeDemoCustomerId(), message: "Demo customer registered." };
+    case "reportPresence":
+      return { success: true };
+    case "getActiveUsers":
+      return { success: true, users: [], totalCount: 0, onlineCount: 0 };
+    default:
+      return { success: false, message: `Unsupported demo action: ${action}` };
   }
 }
 
+// API-shaped wrappers preserve the existing page interfaces while making the
+// portfolio version independent of the unavailable/private Google Sheets backend.
 async function post<T>(payload: Record<string, unknown>): Promise<T> {
-  let lastError: Error | null = null;
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const res = await fetchWithTimeout(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error("API error " + res.status + ": " + text.slice(0, 200));
-      }
-      return res.json();
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error("Unknown error");
-      if (attempt < MAX_RETRIES) {
-        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
-      }
-    }
-  }
-  throw lastError || new Error("Request failed after retries");
+  return demoResponse(String(payload.action || ""), payload) as T;
 }
 
 async function postSingle<T>(payload: Record<string, unknown>): Promise<T> {
-  const res = await fetchWithTimeout(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error("API error " + res.status + ": " + text.slice(0, 200));
-  }
-  return res.json();
+  return demoResponse(String(payload.action || ""), payload) as T;
 }
 
 async function get<T>(params: Record<string, string>): Promise<T> {
-  let lastError: Error | null = null;
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const url = new URL(API_URL);
-      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-      const res = await fetchWithTimeout(url.toString(), { method: "GET" });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error("API error " + res.status + ": " + text.slice(0, 200));
-      }
-      return res.json();
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error("Unknown error");
-      if (attempt < MAX_RETRIES) {
-        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
-      }
-    }
-  }
-  throw lastError || new Error("Request failed after retries");
+  return demoResponse(params.action || "", params) as T;
 }
 
 export interface LoginUser {
@@ -435,155 +407,40 @@ export interface PresenceResponse {
   onlineCount?: number;
 }
 
-const memoryCache: Record<string, { timestamp: number; data: unknown }> = {};
-
-function invalidateCache(key?: string) {
-  if (key) {
-    delete memoryCache[key];
-    if (typeof window !== "undefined") {
-      try {
-        sessionStorage.removeItem(key);
-        localStorage.removeItem(key);
-      } catch {
-        // ignore storage errors
-      }
-    }
-  } else {
-    Object.keys(memoryCache).forEach((k) => delete memoryCache[k]);
-    if (typeof window !== "undefined") {
-      try {
-        ["cache_master_data", "cache_customers", "cache_products", "cache_sub_dbs"].forEach((k) => {
-          sessionStorage.removeItem(k);
-          localStorage.removeItem(k);
-        });
-      } catch {
-        // ignore storage errors
-      }
-    }
-  }
-}
-
-async function getCachedOrFetch<T>(
-  key: string,
-  ttlMs: number,
-  fetchFn: () => Promise<T>,
-  forceRefresh = false
-): Promise<T> {
-  const now = Date.now();
-  if (!forceRefresh && memoryCache[key] && now - memoryCache[key].timestamp < ttlMs) {
-    return memoryCache[key].data as T;
-  }
-
-  if (!forceRefresh && typeof window !== "undefined") {
-    try {
-      const stored = sessionStorage.getItem(key) || localStorage.getItem(key);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (now - parsed.timestamp < ttlMs) {
-          memoryCache[key] = parsed;
-          if (now - parsed.timestamp > ttlMs / 2) {
-            fetchFn().then((res) => {
-              if (res && (res as Record<string, unknown>).success) {
-                memoryCache[key] = { timestamp: Date.now(), data: res };
-                try {
-                  sessionStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: res }));
-                  localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: res }));
-                } catch { /* ignore */ }
-              }
-            }).catch(() => {});
-          }
-          return parsed.data as T;
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  const result = await fetchFn();
-  if (result && (result as Record<string, unknown>).success) {
-    memoryCache[key] = { timestamp: now, data: result };
-    if (typeof window !== "undefined") {
-      try {
-        sessionStorage.setItem(key, JSON.stringify({ timestamp: now, data: result }));
-        localStorage.setItem(key, JSON.stringify({ timestamp: now, data: result }));
-      } catch {
-        // ignore
-      }
-    }
-  }
-  return result;
-}
-
 export const api = {
   login(email: string, password: string) {
     return post<LoginResponse>({ action: "login", email, password });
   },
-
   clockIn(userId: string, lat: number, lng: number, imageBase64?: string) {
     return postSingle<AttendanceResponse>({ action: "clockIn", userId, lat, lng, imageBase64 });
   },
-
   clockOut(userId: string, lat: number, lng: number, imageBase64?: string) {
     return postSingle<AttendanceResponse>({ action: "clockOut", userId, lat, lng, imageBase64 });
   },
-
-  getMasterData(forceRefresh = false) {
-    return getCachedOrFetch<MasterDataResponse>(
-      "cache_master_data",
-      30 * 60 * 1000,
-      () => post<MasterDataResponse>({ action: "getMasterData" }),
-      forceRefresh
-    );
+  getMasterData(_forceRefresh = false) {
+    return post<MasterDataResponse>({ action: "getMasterData" });
   },
-
-  getCustomers(forceRefresh = false) {
-    return getCachedOrFetch<CustomerListResponse>(
-      "cache_customers",
-      15 * 60 * 1000,
-      () => post<CustomerListResponse>({ action: "getCustomers" }),
-      forceRefresh
-    );
+  getCustomers(_forceRefresh = false) {
+    return post<CustomerListResponse>({ action: "getCustomers" });
   },
-
-  getProducts(forceRefresh = false) {
-    return getCachedOrFetch<ProductListResponse>(
-      "cache_products",
-      30 * 60 * 1000,
-      () => post<ProductListResponse>({ action: "getProducts" }),
-      forceRefresh
-    );
+  getProducts(_forceRefresh = false) {
+    return post<ProductListResponse>({ action: "getProducts" });
   },
-
-  getSubDBs(forceRefresh = false) {
-    return getCachedOrFetch<SubDBListResponse>(
-      "cache_sub_dbs",
-      30 * 60 * 1000,
-      () => post<SubDBListResponse>({ action: "getSubDBs" }),
-      forceRefresh
-    );
+  getSubDBs(_forceRefresh = false) {
+    return post<SubDBListResponse>({ action: "getSubDBs" });
   },
-
   async submitVisit(data: VisitData) {
-    const res = await postSingle<VisitResponse>({ action: "submitVisit", ...data });
-    if (res.success) invalidateCache("cache_customers");
-    return res;
+    return postSingle<VisitResponse>({ action: "submitVisit", ...data });
   },
-
   async submitOrder(data: OrderData) {
-    const res = await postSingle<OrderResponse>({ action: "submitOrder", ...data });
-    if (res.success) invalidateCache("cache_customers");
-    return res;
+    return postSingle<OrderResponse>({ action: "submitOrder", ...data });
   },
-
   getDashboardData(email: string) {
     return post<DashboardResponse>({ action: "getDashboardData", email });
   },
-
   getReportData(email: string, startDate?: string, endDate?: string) {
     return post<ReportResponse>({ action: "getReportData", email, startDate, endDate });
   },
-
   async registerCustomer(data: {
     email: string;
     district: string;
@@ -609,27 +466,19 @@ export const api = {
     gpsAccuracy?: number;
     shopPhotoBase64?: string;
   }) {
-    const res = await postSingle<CustomerRegistrationResponse>({ action: "registerCustomer", ...data });
-    if (res.success) invalidateCache("cache_customers");
-    return res;
+    return postSingle<CustomerRegistrationResponse>({ action: "registerCustomer", ...data });
   },
-
   reportPresence(user: { userId: string; employeeName: string; employeeCode: string; position: string; area: string; territory: string }) {
     return postSingle<{ success: boolean }>({ action: "reportPresence", ...user, timestamp: Date.now() });
   },
-
   getActiveUsers() {
     return post<PresenceResponse>({ action: "getActiveUsers" });
   },
-
   prefetchData() {
     this.getMasterData().catch(() => {});
     this.getCustomers().catch(() => {});
     this.getProducts().catch(() => {});
     this.getSubDBs().catch(() => {});
   },
-
-  clearCache() {
-    invalidateCache();
-  },
+  clearCache() {},
 };
