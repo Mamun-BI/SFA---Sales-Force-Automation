@@ -9,9 +9,18 @@ import { ToastProvider } from "@/components/Toast";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Rock SFA",
-  description: "Sales Force Automation",
+  title: {
+    default: "SalesFlow | Field Sales Dashboard",
+    template: "%s | SalesFlow",
+  },
+  applicationName: "SalesFlow",
+  description: "A fictional field sales dashboard demo for portfolio showcase.",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "SalesFlow",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport = {
@@ -30,11 +39,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-      </head>
       <body className={`${inter.className} bg-gray-100 text-gray-900 antialiased`}>
         <PWASetup />
         <ToastProvider>
@@ -43,8 +47,8 @@ export default function RootLayout({
               <main className="w-full max-w-md min-h-screen bg-white shadow-xl relative">
                 {children}
               </main>
+              <BottomNav />
             </div>
-            <BottomNav />
           </AuthProvider>
         </ToastProvider>
       </body>
